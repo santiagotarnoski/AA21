@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AA21 · Catálogo de productos</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <script src="js/app.js" defer></script>
+</head>
+<body>
+    <main>
+        <header>
+            <p class="etiqueta">AA21 · Productos</p>
+            <h1>Catálogo de productos</h1>
+            <p>Buscá por nombre o categoría y agregá productos al catálogo.</p>
+        </header>
+        <section class="search-box" aria-label="Buscar productos">
+            <form id="form-buscar">
+                <label for="input-buscar">Nombre o categoría</label>
+                <div class="form-group">
+                    <input type="search" id="input-buscar" name="q" maxlength="100" placeholder="Ej.: teclado, monitores, audio">
+                    <button type="submit">Buscar</button>
+                    <button type="button" id="mostrar-todos" class="secundario">Ver todos</button>
+                </div>
+            </form>
+        </section>
+
+        <details class="search-box">
+            <summary>Agregar producto</summary>
+            <form id="form-producto">
+                <div class="campos">
+                    <div>
+                        <label for="nombre">Nombre</label>
+                        <input type="text" id="nombre" name="nombre" maxlength="100" required>
+                    </div>
+                    <div>
+                        <label for="categoria">Categoría</label>
+                        <input type="text" id="categoria" name="categoria" maxlength="50" required>
+                    </div>
+                    <div>
+                        <label for="precio">Precio ($)</label>
+                        <input type="number" id="precio" name="precio" min="0" max="99999999.99" step="0.01" required>
+                    </div>
+                    <div>
+                        <label for="stock">Stock</label>
+                        <input type="number" id="stock" name="stock" min="0" max="2147483647" step="1" value="0" required>
+                    </div>
+                </div>
+                <button type="submit" id="guardar-producto" disabled>Guardar producto</button>
+                <p id="estado-producto" role="status" aria-live="polite"></p>
+            </form>
+        </details>
+
+        <p id="estado-busqueda" role="status" aria-live="polite">Cargando productos…</p>
+        <section id="resultados" aria-label="Resultados de la búsqueda" aria-busy="true"></section>
+    </main>
+</body>
+</html>
