@@ -1,4 +1,5 @@
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 body {
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     max-width: 900px;
@@ -53,6 +54,12 @@ summary { cursor: pointer; font-weight: 600; }
 .precio { color: #15663b; font-size: 20px; font-weight: 600; }
 .error { color: #a02b26; }
 .exito { color: #15663b; }
+.auth-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; }
+.auth-grid h2 { margin-top: 0; font-size: 21px; }
+.auth-grid label { margin-top: 16px; }
+.auth-grid button { margin-top: 18px; }
+.ayuda { font-size: 14px; color: #536477; margin: 8px 0 0; }
+#nombre-usuario, #email-usuario { overflow-wrap: anywhere; }
 @media (max-width: 600px) {
     body { margin-top: 24px; padding: 0 16px 24px; }
     .search-box { padding: 18px; }
@@ -60,5 +67,6 @@ summary { cursor: pointer; font-weight: 600; }
     .form-group input { flex-basis: 100%; }
     .form-group button { flex: 1; }
     .campos { grid-template-columns: 1fr; }
+    .auth-grid { grid-template-columns: 1fr; }
     #resultados { grid-template-columns: 1fr; }
 }

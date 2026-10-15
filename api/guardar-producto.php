@@ -1,34 +1,8 @@
 <?php
 require_once __DIR__ . '/comun.php';
 
-if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    header('Allow: POST');
-    error_api('Este endpoint acepta únicamente POST.', 405);
-}
-
-$tipo = strtolower(trim(explode(';', $_SERVER['CONTENT_TYPE'] ?? '')[0]));
-if ($tipo !== 'application/json') {
-    error_api('Enviá los datos como application/json.', 415);
-}
-
-$token = iniciar_sesion_api();
-$recibido = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
-if (!is_string($recibido) || !hash_equals($token, $recibido)) {
-    error_api('El formulario venció. Actualizá la página e intentá otra vez.', 403);
-}
-
-$cuerpo = file_get_contents('php://input', false, null, 0, 8193);
-if ($cuerpo === false || strlen($cuerpo) > 8192) {
-    error_api('El cuerpo de la petición es demasiado grande.', 413);
-}
-try {
-    $datos = json_decode($cuerpo, false, 512, JSON_THROW_ON_ERROR);
-} catch (JsonException $e) {
-    error_api('El JSON no es válido.', 400);
-}
-if (!is_object($datos)) {
-    error_api('Enviá un objeto JSON con los datos del producto.', 400);
-}
+$usuarioId = requerir_usuario();
+$datos = leer_json_post();
 
 $nombre = $datos->nombre ?? null;
 $categoria = $datos->categoria ?? null;

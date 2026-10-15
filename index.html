@@ -14,6 +14,40 @@
             <h1>Catálogo de productos</h1>
             <p>Buscá por nombre o categoría y agregá productos al catálogo.</p>
         </header>
+        <section class="search-box" aria-label="Cuenta de usuario">
+            <p id="estado-sesion" role="status" aria-live="polite">Comprobando sesión…</p>
+            <div id="panel-invitado" hidden>
+                <div class="auth-grid">
+                    <form id="form-login">
+                        <h2>Iniciar sesión</h2>
+                        <label for="login-email">Correo electrónico</label>
+                        <input type="email" id="login-email" name="email" maxlength="100" autocomplete="username" required>
+                        <label for="login-password">Contraseña</label>
+                        <input type="password" id="login-password" name="password" maxlength="72" autocomplete="current-password" required>
+                        <button type="submit" disabled>Ingresar</button>
+                    </form>
+                    <details id="registro-cuenta">
+                        <summary>Crear cuenta</summary>
+                        <form id="form-registro">
+                            <label for="registro-nombre">Nombre</label>
+                            <input type="text" id="registro-nombre" name="nombre" maxlength="100" autocomplete="name" required>
+                            <label for="registro-email">Correo electrónico</label>
+                            <input type="email" id="registro-email" name="email" maxlength="100" autocomplete="email" required>
+                            <label for="registro-password">Contraseña</label>
+                            <input type="password" id="registro-password" name="password" minlength="8" maxlength="72" autocomplete="new-password" aria-describedby="ayuda-password" required>
+                            <p class="ayuda" id="ayuda-password">Usá al menos 8 caracteres.</p>
+                            <button type="submit" disabled>Registrarme</button>
+                        </form>
+                    </details>
+                </div>
+                <p id="estado-auth" role="status" aria-live="polite"></p>
+            </div>
+            <div id="panel-usuario" hidden>
+                <p>Sesión iniciada como <strong id="nombre-usuario"></strong></p>
+                <p id="email-usuario" class="categoria"></p>
+                <button type="button" id="cerrar-sesion">Cerrar sesión</button>
+            </div>
+        </section>
         <section class="search-box" aria-label="Buscar productos">
             <form id="form-buscar">
                 <label for="input-buscar">Nombre o categoría</label>
@@ -25,7 +59,7 @@
             </form>
         </section>
 
-        <details class="search-box">
+        <details class="search-box" id="panel-producto" hidden>
             <summary>Agregar producto</summary>
             <form id="form-producto">
                 <div class="campos">

@@ -55,15 +55,39 @@ function pedir(string $ruta, string $metodo = 'GET', ?string $cuerpo = null, arr
     return [curl_getinfo($cliente, CURLINFO_HTTP_CODE), json_decode($texto, true), $texto];
 }
 
+function cookie_sesion(): string
+{
+    global $cliente;
+    foreach (curl_getinfo($cliente, CURLINFO_COOKIELIST) as $cookie) {
+        $partes = explode("\t", $cookie);
+        if (($partes[5] ?? '') === 'buscador_seguro') { return $partes[6]; }
+    }
+    return '';
+}
+
+function pedir_visitante(string $ruta, array $headers = [], string $metodo = 'GET', ?string $cuerpo = null): array
+{
+    global $cliente;
+    $principal = $cliente;
+    $cliente = curl_init();
+    curl_setopt_array($cliente, [CURLOPT_RETURNTRANSFER => true, CURLOPT_COOKIEFILE => '', CURLOPT_TIMEOUT => 5]);
+    try { return pedir($ruta, $metodo, $cuerpo, $headers); }
+    finally { curl_close($cliente); $cliente = $principal; }
+}
+
 try {
     // El identificador es generado aquí, no proviene de una petición del usuario.
     $admin->exec("CREATE DATABASE `$basePrueba` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
     $creada = true;
     $admin->exec("USE `$basePrueba`");
-    $sql = preg_replace('/^--.*$/m', '', file_get_contents($proyecto . '/sql/productos.sql'));
-    foreach (explode(';', $sql) as $sentencia) {
-        if (trim($sentencia) !== '') { $admin->exec($sentencia); }
+    foreach (['productos', 'usuarios'] as $tabla) {
+        $sql = preg_replace('/^--.*$/m', '', file_get_contents($proyecto . '/sql/' . $tabla . '.sql'));
+        foreach (explode(';', $sql) as $sentencia) {
+            if (trim($sentencia) !== '') { $admin->exec($sentencia); }
+        }
     }
+    $admin->prepare('INSERT INTO usuarios (nombre, email, password) VALUES (?, ?, ?)')
+        ->execute(['Usuario anterior', 'anterior@example.test', '12345678']);
 
     // Reproduce la concatenación del ZIP únicamente en la base temporal.
     $ataque = "x' OR 1=1 -- ";
@@ -99,8 +123,62 @@ try {
     $cliente = curl_init();
     curl_setopt_array($cliente, [CURLOPT_RETURNTRANSFER => true, CURLOPT_COOKIEFILE => '', CURLOPT_TIMEOUT => 5]);
     [$estado, $datos] = pedir('/api/buscador-seguro.php');
-    comprobar($estado === 200 && $datos['total'] === 4 && strlen($datos['csrf_token']) === 64, 'lectura inicial y token CSRF');
+    comprobar($estado === 200 && $datos['total'] === 4, 'catálogo público disponible sin sesión');
+    [$estado, $datos] = pedir('/api/perfil.php');
+    comprobar($estado === 401 && strlen($datos['csrf_token']) === 64 && !isset($datos['usuario']), 'perfil privado devuelve 401 y token para el formulario');
+    $csrfInvitado = $datos['csrf_token'];
+    $headersInvitado = ['Content-Type: application/json', 'X-CSRF-Token: ' . $csrfInvitado];
+    $cookieInvitado = cookie_sesion();
+    comprobar($cookieInvitado !== '', 'la sesión usa una cookie propia del buscador');
+    [$estado] = pedir('/api/guardar-producto.php', 'POST', '{"nombre":"No autorizado"}', $headersInvitado);
+    comprobar($estado === 401, 'un visitante no puede guardar productos aunque tenga un token CSRF');
+    [$estado] = pedir('/api/registro.php');
+    comprobar($estado === 405, 'registro exige POST');
+    [$estado] = pedir('/api/registro.php', 'POST', '{}', ['Content-Type: application/json']);
+    comprobar($estado === 403, 'registro exige token CSRF');
+    $cuenta = ['nombre' => 'Ana <img src=x onerror=alert(1)>', 'email' => 'ana@example.test', 'password' => 'Clave segura 123'];
+    foreach ([['password' => 'corta'], ['password' => str_repeat('a', 73)], ['password' => "clave\0segura"], ['nombre' => []], ['email' => 'correo-invalido']] as $cambio) {
+        [$estado] = pedir('/api/registro.php', 'POST', json_encode(array_replace($cuenta, $cambio)), $headersInvitado);
+        comprobar($estado === 422, 'registro rechaza un campo inválido: ' . array_key_first($cambio));
+    }
+    [$estado] = pedir('/api/registro.php', 'POST', json_encode($cuenta), $headersInvitado);
+    comprobar($estado === 201, 'registro JSON crea la cuenta');
+    $consultaCuenta = $admin->prepare('SELECT id, nombre, password FROM usuarios WHERE email = ?');
+    $consultaCuenta->execute([$cuenta['email']]);
+    $registrado = $consultaCuenta->fetch(PDO::FETCH_ASSOC);
+    comprobar(password_get_info($registrado['password'])['algoName'] === 'bcrypt' && password_verify($cuenta['password'], $registrado['password']) && $registrado['password'] !== $cuenta['password'], 'MySQL guarda BCRYPT verificable y nunca la contraseña original');
+    [$estado] = pedir('/api/registro.php', 'POST', json_encode($cuenta), $headersInvitado);
+    comprobar($estado === 409, 'registro rechaza un correo duplicado');
+    [$estado] = pedir('/api/perfil.php');
+    comprobar($estado === 401, 'registrarse no concede una sesión sin pasar por el login');
+    [$estado, $falloConocido] = pedir('/api/login.php', 'POST', json_encode(['email' => $cuenta['email'], 'password' => 'incorrecta']), $headersInvitado);
+    comprobar($estado === 401, 'contraseña incorrecta rechazada');
+    [$estado, $falloDesconocido] = pedir('/api/login.php', 'POST', json_encode(['email' => 'inexistente@example.test', 'password' => 'incorrecta']), $headersInvitado);
+    comprobar($estado === 401 && $falloConocido['mensaje'] === $falloDesconocido['mensaje'], 'login no revela si el correo existe');
+    [$estado] = pedir('/api/login.php', 'POST', json_encode(['email' => 'anterior@example.test', 'password' => '12345678']), $headersInvitado);
+    comprobar($estado === 401 && $admin->query("SELECT password FROM usuarios WHERE email = 'anterior@example.test'")->fetchColumn() === '12345678', 'las cuentas antiguas en texto no acceden y sus datos se conservan');
+    [$estado] = pedir('/api/login.php', 'POST', json_encode(['email' => $cuenta['email'], 'password' => $registrado['password']]), $headersInvitado);
+    comprobar($estado === 401, 'conocer el hash no permite usarlo como contraseña');
+    [$estado] = pedir('/api/login.php', 'POST', json_encode(['email' => $cuenta['email'], 'password' => $cuenta['password']]), $headersInvitado);
+    comprobar($estado === 200, 'login correcto con password_verify');
+    $cookieAutenticada = cookie_sesion();
+    comprobar($cookieAutenticada !== '' && $cookieAutenticada !== $cookieInvitado, 'el login regenera el identificador de sesión');
+    $contenidoSesion = file_get_contents($temporal . '/sesiones/sess_' . $cookieAutenticada);
+    comprobar(str_contains($contenidoSesion, 'usuario_id|i:' . $registrado['id'] . ';'), 'el identificador del usuario queda guardado en la sesión del servidor');
+    [$estado, $datos] = pedir('/api/perfil.php');
+    comprobar($estado === 200 && $datos['usuario']['nombre'] === $cuenta['nombre'] && !isset($datos['usuario']['password']), 'perfil autenticado conserva el nombre como dato y no devuelve hashes');
+    comprobar($datos['csrf_token'] !== $csrfInvitado, 'el login renueva también el token CSRF');
     $headers = ['Content-Type: application/json', 'X-CSRF-Token: ' . $datos['csrf_token']];
+    [$estado] = pedir_visitante('/api/perfil.php', ['Cookie: buscador_seguro=' . $cookieInvitado]);
+    comprobar($estado === 401, 'la cookie anterior al login no da acceso al perfil');
+    $cookieAnterior = bin2hex(random_bytes(16));
+    file_put_contents($temporal . '/sesiones/sess_' . $cookieAnterior, 'usuario_id|i:' . $registrado['id'] . ';');
+    [$estado] = pedir_visitante('/api/perfil.php', ['Cookie: PHPSESSID=' . $cookieAnterior]);
+    comprobar($estado === 401, 'una sesión del login anterior no autentica en el buscador');
+    [$estado] = pedir_visitante('/api/guardar-producto.php', $headers, 'POST', '{"nombre":"Sin sesión"}');
+    comprobar($estado === 401, 'un token conocido sin la cookie de sesión no autoriza escrituras');
+    [$estado] = pedir('/api/guardar-producto.php', 'POST', '{}', $headersInvitado);
+    comprobar($estado === 403, 'el token anterior al login deja de ser válido');
     [$estado, $datos] = pedir('/api/buscador-seguro.php?q=teclado');
     comprobar($estado === 200 && $datos['total'] === 1 && $datos['data'][0]['precio'] === '25000.00', 'búsqueda parcial y precio decimal exacto');
     [$estado, $datos] = pedir('/api/buscador-seguro.php?q=' . rawurlencode('Periféricos'));
@@ -142,6 +220,18 @@ try {
     $producto['nombre'] = "Prueba'); DROP TABLE productos; --";
     [$estado] = pedir('/api/guardar-producto.php', 'POST', json_encode($producto), $headers);
     comprobar($estado === 201 && (int) $admin->query('SELECT COUNT(*) FROM productos')->fetchColumn() === 6, 'la inyección en un INSERT se guarda como texto y no ejecuta SQL');
+    [$estado] = pedir('/api/logout.php', 'POST', '{}', ['Content-Type: application/json']);
+    comprobar($estado === 403, 'logout exige CSRF');
+    [$estado] = pedir('/api/logout.php', 'POST', '{}', $headers);
+    comprobar($estado === 200, 'cierre de sesión correcto');
+    [$estado] = pedir('/api/perfil.php');
+    comprobar($estado === 401, 'el perfil vuelve a responder 401 después del logout');
+    [$estado] = pedir('/api/guardar-producto.php', 'POST', json_encode($producto), $headers);
+    comprobar($estado === 401, 'el alta vuelve a estar protegida después del logout');
+    [$estado] = pedir_visitante('/api/perfil.php', ['Cookie: buscador_seguro=' . $cookieAutenticada]);
+    comprobar($estado === 401, 'no se puede reutilizar la cookie autenticada después del logout');
+    [$estado, $datos] = pedir('/api/buscador-seguro.php');
+    comprobar($estado === 200 && $datos['total'] === 6, 'el catálogo público continúa funcionando sin sesión');
     echo "\n$checks verificaciones correctas. Se usó una base y un puerto temporales.\n";
 } finally {
     if ($cliente) { curl_close($cliente); }

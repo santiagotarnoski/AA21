@@ -33,7 +33,6 @@ try {
         'estado' => 'exito',
         'total' => count($productos),
         'data' => $productos,
-        'csrf_token' => iniciar_sesion_api(),
     ]);
 } catch (PDOException $e) {
     error_log($e->getMessage());
