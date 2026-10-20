@@ -86,6 +86,7 @@ try {
             if (trim($sentencia) !== '') { $admin->exec($sentencia); }
         }
     }
+    comprobar($admin->query("SHOW COLUMNS FROM usuarios LIKE 'password'")->fetch(PDO::FETCH_ASSOC)['Type'] === 'varchar(255)', 'usuarios.password es VARCHAR(255) para guardar BCRYPT');
     $admin->prepare('INSERT INTO usuarios (nombre, email, password) VALUES (?, ?, ?)')
         ->execute(['Usuario anterior', 'anterior@example.test', '12345678']);
 
@@ -166,9 +167,13 @@ try {
     $contenidoSesion = file_get_contents($temporal . '/sesiones/sess_' . $cookieAutenticada);
     comprobar(str_contains($contenidoSesion, 'usuario_id|i:' . $registrado['id'] . ';'), 'el identificador del usuario queda guardado en la sesión del servidor');
     [$estado, $datos] = pedir('/api/perfil.php');
-    comprobar($estado === 200 && $datos['usuario']['nombre'] === $cuenta['nombre'] && !isset($datos['usuario']['password']), 'perfil autenticado conserva el nombre como dato y no devuelve hashes');
+    comprobar($estado === 200 && $datos['usuario']['nombre'] === $cuenta['nombre'] && $datos['usuario']['email'] === $cuenta['email'] && !isset($datos['usuario']['password']), 'perfil autenticado devuelve nombre y correo como datos sin hashes');
     comprobar($datos['csrf_token'] !== $csrfInvitado, 'el login renueva también el token CSRF');
     $headers = ['Content-Type: application/json', 'X-CSRF-Token: ' . $datos['csrf_token']];
+    [$estado, $perfilRecuperado] = pedir('/api/perfil.php');
+    comprobar($estado === 200 && $perfilRecuperado['usuario'] === $datos['usuario'], 'la sesión recupera el perfil completo en una nueva petición');
+    [$estado] = pedir('/api/perfil.php', 'POST', '{}', $headers);
+    comprobar($estado === 405, 'el perfil solo acepta consultas GET');
     [$estado] = pedir_visitante('/api/perfil.php', ['Cookie: buscador_seguro=' . $cookieInvitado]);
     comprobar($estado === 401, 'la cookie anterior al login no da acceso al perfil');
     $cookieAnterior = bin2hex(random_bytes(16));
@@ -220,6 +225,8 @@ try {
     $producto['nombre'] = "Prueba'); DROP TABLE productos; --";
     [$estado] = pedir('/api/guardar-producto.php', 'POST', json_encode($producto), $headers);
     comprobar($estado === 201 && (int) $admin->query('SELECT COUNT(*) FROM productos')->fetchColumn() === 6, 'la inyección en un INSERT se guarda como texto y no ejecuta SQL');
+    [$estado] = pedir('/api/logout.php');
+    comprobar($estado === 405, 'el logout no se ejecuta mediante GET');
     [$estado] = pedir('/api/logout.php', 'POST', '{}', ['Content-Type: application/json']);
     comprobar($estado === 403, 'logout exige CSRF');
     [$estado] = pedir('/api/logout.php', 'POST', '{}', $headers);

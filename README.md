@@ -1,15 +1,11 @@
-# AA21 - Buscador de productos con autenticación
+# AA21 y AA23 - Buscador de productos con autenticación
 
-El trabajo consistió en adaptar el buscador entregado en clase para consultar y guardar productos en MySQL desde PHP. Se utilizó la base `clase_backend` y la tabla `productos`, con los campos nombre, categoría, precio y stock.
+En AA21 adapté el buscador entregado en clase para consultar y guardar productos en MySQL desde PHP. Usé la base `clase_backend` y la tabla `productos`, con nombre, categoría, precio y stock. Reemplacé la concatenación de SQL por consultas preparadas con PDO para que las búsquedas y las altas trataran lo ingresado como datos.
 
-El buscador original concatenaba el texto ingresado dentro de la consulta SQL, lo que permitía modificarla mediante SQL Injection. Se reemplazó esa concatenación por consultas preparadas con PDO, usando `prepare()`, `bindValue()` y `execute()`. De esta manera, lo ingresado se procesa como un dato y no como parte del código SQL. También se corrigió la configuración de la conexión.
+Para AA23 continué ese mismo buscador e incorporé registro, inicio y cierre de sesión. La tabla `usuarios` tiene `password VARCHAR(255)`. El registro recibe JSON, valida los campos y guarda la contraseña con `password_hash()` y `PASSWORD_BCRYPT` mediante un INSERT preparado. El login usa `password_verify()`, inicia la sesión con `session_start()`, guarda `$_SESSION['usuario_id']` y renueva el identificador con `session_regenerate_id(true)`.
 
-El frontend utiliza JavaScript Vanilla con `fetch` para enviar las búsquedas y mostrar los resultados sin recargar la página. Permite buscar por nombre o categoría y muestra el precio y el stock de cada producto.
+El perfil (`api/perfil.php`) y el alta de productos (`api/guardar-producto.php`) requieren una sesión válida y responden HTTP 401 si el usuario no ingresó. El catálogo sigue disponible para consultar productos. Las escrituras incluyen un token CSRF y el cierre de sesión invalida la cookie.
 
-Se agregó un formulario para cargar productos mediante un INSERT preparado. El backend valida los campos obligatorios, la longitud de los textos, el precio y que el stock sea un entero no negativo. Las escrituras incluyen un token CSRF.
+La interfaz usa JavaScript Vanilla y `fetch`. Al cargar la página consulta el perfil y muestra los formularios de acceso o los datos del usuario y el formulario de alta según la sesión. El nombre, el correo y los productos se muestran con `textContent` para prevenir XSS. La búsqueda por nombre o categoría y las altas funcionan sin recargar la página.
 
-La autenticación se incorporó con `api/registro.php` y `api/login.php`. El registro recibe JSON y guarda la contraseña con `password_hash()` y `PASSWORD_BCRYPT` en un campo `VARCHAR(255)`. El login la comprueba con `password_verify()`, guarda el identificador del usuario en la sesión y renueva su identificador con `session_regenerate_id(true)`. Las contraseñas antiguas guardadas en texto se conservaron para el ejercicio anterior y no se aceptan en este login.
-
-El perfil y el alta de productos requieren una sesión válida y responden 401 cuando no la hay. Al abrir la página, JavaScript consulta el perfil mediante `fetch` y muestra los formularios de ingreso o las acciones del usuario según la respuesta. También se agregó el cierre de sesión. Los nombres, correos y productos se muestran con `textContent` para evitar que su contenido se interprete como HTML.
-
-Se probaron las búsquedas, las altas, el registro, el login y el cierre de sesión. Se verificaron los hashes BCRYPT, la renovación de la cookie, el rechazo de accesos sin sesión y de datos inválidos, y que las comillas y los intentos de inyección se trataran como texto.
+Probé el registro, los correos duplicados, las contraseñas incorrectas, la recuperación del perfil y el logout, además de las búsquedas y altas del catálogo. Verifiqué los hashes BCRYPT, la renovación de la sesión y el rechazo de accesos sin autorización. Los usuarios antiguos se conservan; las contraseñas guardadas en texto no se aceptan en este login.

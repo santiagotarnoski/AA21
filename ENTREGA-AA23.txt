@@ -1,0 +1,7 @@
+AA23 - Evolución del buscador de AA21
+
+Repositorio de entrega:
+https://github.com/santiagotarnoski/AA21
+
+Se incorporó autenticación con BCRYPT y sesiones al buscador de productos.
+El perfil y el alta de productos requieren una sesión válida.
